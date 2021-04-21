@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../api.dart';
+
 class UpdateProfile extends StatefulWidget {
   @override
   _UpdateProfileState createState() => _UpdateProfileState();
@@ -165,7 +167,7 @@ class _UpdateProfileState extends State<UpdateProfile> {
                  "ModifiedBy":id,
                  "ModifiedOn":DateFormat('dd-MM-yyyy').format(DateTime.now()),
               });
-              var response = await dio.post("http://192.168.0.100:8081/cenply/services/user/update?id=$id", data: formData);
+              var response = await dio.post(Api().getUrl()+"user/update?id=$id", data: formData);
               print(response.data);
               if(jsonDecode(response.data)['success']==true) {
                 if (jsonDecode(response.data)['response'].toString() != "[]") {

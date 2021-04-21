@@ -10,6 +10,8 @@ import 'package:myorg/Screens/view_fees_transictions.dart';
 import 'package:rect_getter/rect_getter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
+
+import '../../api.dart';
 class FadeRouteBuilder<T> extends PageRouteBuilder<T> {
   final Widget page;
 
@@ -48,6 +50,8 @@ class HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     orgdata = getOrgData();
+    getPendingFuture = getPending();
+    getUserEngFuture = getUserEng();
     updateData();
   }
   final Duration animationDuration = Duration(milliseconds: 300);
@@ -107,19 +111,32 @@ class HomeScreenState extends State<HomeScreen> {
   PageController _pageController = PageController(initialPage:0);
   int currentIndex = 0;
   bool adding = true,enableOrgEditing=false;
-  Future orgdata;
+  Future orgdata,getPendingFuture,getUserEngFuture;
   String org_name,user_name,user_email;
   var dio = Dio();
   getOrgData() async {
       FormData formData = new FormData.fromMap({
         "id":"1",
       });
-      var response = await dio.post("http://192.168.0.100:8081/cenply/services/organization/get", data: formData);
+      var response = await dio.post(Api().getUrl()+"organization/get", data: formData);
       print(response.data);
       setState(() {
         org_name = jsonDecode(response.data)['response']['OrgName'];
       });
       return jsonDecode(response.data);
+  }
+  getPending() async {
+    var response = await dio.post(Api().getUrl()+"fees_transition/transictions?id=1");
+    print(response.data);
+    return jsonDecode(response.data);
+  }
+  getUserEng() async {
+    FormData formData = new FormData.fromMap({
+      "id":"1",
+    });
+    var response = await dio.post(Api().getUrl()+"user_engagement/getByOrgID", data: formData);
+    print(response.data);
+    return jsonDecode(response.data);
   }
   TextEditingController name = TextEditingController();
   TextEditingController email = TextEditingController();
@@ -133,14 +150,14 @@ class HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     var height = MediaQuery.of(context).size.height;
     var width = MediaQuery.of(context).size.width;
-    return (new WillPopScope(
+    return WillPopScope(
       onWillPop: () async {
         return true;
       },
       //Color(0xffffd0d8)
       child: Stack(
         children: [
-          new Scaffold(
+           Scaffold(
             backgroundColor:primiryColor,
             appBar: AppBar(
               elevation: 0,
@@ -285,7 +302,7 @@ class HomeScreenState extends State<HomeScreen> {
                 });
               },
               children: [
-                Stack(
+                 Stack(
                   children: <Widget>[
                     Container(
                       height:height,
@@ -352,123 +369,281 @@ class HomeScreenState extends State<HomeScreen> {
                                 ListTile(
                                   title: Text("Pending Transactions",style: TextStyle(fontSize:20,fontWeight: FontWeight.w400,color: Colors.grey[400]),),
                                 ),
-                                Padding(
+                                Container(
+                                  constraints: BoxConstraints(minHeight: height),
                                   padding: const EdgeInsets.all(10.0),
-                                  child: GridView.builder(
-                                      shrinkWrap:true,
-                                      physics: NeverScrollableScrollPhysics(),
-                                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2),
-                                      itemCount:10,
-                                      itemBuilder:(context,index){
-                                        final rectGetterKey = RectGetter.createGlobalKey();
-                                        var col = colors[Random().nextInt(colors.length)];
-                                        Color color = col['color'];
-                                        return RectGetter(
-                                          key:rectGetterKey,
-                                          child: GestureDetector(
-                                            onTap: ()async {
-                                              setState(() => rect = RectGetter.getRectFromKey(rectGetterKey));  //<-- set rect to be size of fab
-                                              WidgetsBinding.instance.addPostFrameCallback((_) {                //<-- on the next frame...
-                                                setState(() =>
-                                                rect = rect.inflate(1.3 * MediaQuery.of(context).size.longestSide)); //<-- set rect to be big
-                                                Future.delayed(animationDuration + delay, (){
-                                                  Navigator.of(context)
-                                                      .push(FadeRouteBuilder(page: ViewFeesTransitions()))
-                                                      .then((_) => setState(() => rect = null));
-                                                }); //<-- after delay, go to next page
-                                              });
-                                            },
-                                            child: Card(
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(15.0),
-                                              ),
-                                              color:col['color'],
-                                              child: Container(
-                                                height: 200,
-                                                width: 200,
-                                                child: Stack(
-                                                  children: [
-                                                    Container(
-                                                      height: width*0.5-9,
-                                                      width: width*0.5-9,
-                                                      padding: EdgeInsets.all(10),
-                                                      decoration: BoxDecoration(
-                                                        borderRadius: BorderRadius.all(Radius.circular(15)),
-                                                        image: DecorationImage(image:AssetImage(col['image']),fit: BoxFit.cover),
-                                                      ),
+                                  child: FutureBuilder(
+                                    future: getPendingFuture,
+                                    builder: (context, snapshot) {
+                                      print(snapshot.data);
+                                      if(snapshot.connectionState!=ConnectionState.waiting) {
+                                        return GridView.builder(
+                                            shrinkWrap: true,
+                                            physics: NeverScrollableScrollPhysics(),
+                                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                                crossAxisCount: 2,childAspectRatio: 1.0),
+                                            itemCount: snapshot.data['response'].length,
+                                            itemBuilder: (context, index) {
+                                              final rectGetterKey = RectGetter
+                                                  .createGlobalKey();
+                                              var col = colors[Random().nextInt(
+                                                  colors.length)];
+                                              Color color = col['color'];
+                                              return RectGetter(
+                                                key: rectGetterKey,
+                                                child: GestureDetector(
+                                                  onTap: () async {
+                                                    setState(() => rect =
+                                                        RectGetter
+                                                            .getRectFromKey(
+                                                            rectGetterKey)); //<-- set rect to be size of fab
+                                                    WidgetsBinding.instance
+                                                        .addPostFrameCallback((
+                                                        _) { //<-- on the next frame...
+                                                      setState(() =>
+                                                      rect = rect.inflate(
+                                                          1.3 * MediaQuery
+                                                              .of(context)
+                                                              .size
+                                                              .longestSide)); //<-- set rect to be big
+                                                      Future.delayed(
+                                                          animationDuration +
+                                                              delay, () {
+                                                        Navigator.of(context)
+                                                            .push(
+                                                            FadeRouteBuilder(
+                                                                page: ViewFeesTransitions()))
+                                                            .then((_) =>
+                                                            setState(() =>
+                                                            rect = null));
+                                                      }); //<-- after delay, go to next page
+                                                    });
+                                                  },
+                                                  child: Card(
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius: BorderRadius
+                                                          .circular(15.0),
                                                     ),
-                                                    Container(
-                                                      height: width*0.5-9,
-                                                      width: width*0.5-9,
-                                                      padding: EdgeInsets.all(10),
-                                                      decoration: BoxDecoration(
-                                                        //color:color.withOpacity(0.8),
-                                                          gradient: LinearGradient(
-                                                              begin: Alignment.topCenter,
-                                                              end: Alignment.bottomCenter,
-                                                              colors: [
-                                                                color.withOpacity(0.8),
-                                                                color.withOpacity(0.8),
-                                                                color.withOpacity(0.8),
-                                                                color
-                                                              ]
-                                                          ),
-                                                          borderRadius: BorderRadius.all(Radius.circular(15))
-                                                      ),
-                                                      child: Column(
-                                                        mainAxisAlignment: MainAxisAlignment.start,
-                                                        crossAxisAlignment: CrossAxisAlignment.end,
-                                                        children: [
-                                                          Text("\$300",style: TextStyle(color: Colors.white,fontWeight: FontWeight.bold,fontSize:32),),
-                                                          Text("Start Date 12/02/2021",style: TextStyle(color: Colors.white,fontWeight: FontWeight.w400,fontSize:12),),
-                                                          Text("End Date 12/03/2021",style: TextStyle(color: Colors.white,fontWeight: FontWeight.w400,fontSize:12),),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    Container(
-                                                      height: width*0.5-9,
-                                                      alignment: Alignment.bottomCenter,
-                                                      child: Row(
-                                                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                                    color: col['color'],
+                                                    child: Container(
+                                                      height: 200,
+                                                      width: 200,
+                                                      child: Stack(
                                                         children: [
                                                           Container(
-                                                            height:40,
-                                                            // width: width*0.25-9,
-                                                            alignment: Alignment.center,
+                                                            height: width *
+                                                                0.5 - 9,
+                                                            width: width * 0.5 -
+                                                                9,
+                                                            padding: EdgeInsets
+                                                                .all(10),
                                                             decoration: BoxDecoration(
-                                                              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(15)),
+                                                              borderRadius: BorderRadius
+                                                                  .all(Radius
+                                                                  .circular(
+                                                                  15)),
+                                                              image: DecorationImage(
+                                                                  image: AssetImage(
+                                                                      col['image']),
+                                                                  fit: BoxFit
+                                                                      .cover),
                                                             ),
-                                                            child: Row(
+                                                          ),
+                                                          Container(
+                                                            height: width *
+                                                                0.5 - 9,
+                                                            width: width * 0.5 -
+                                                                9,
+                                                            padding: EdgeInsets
+                                                                .all(10),
+                                                            decoration: BoxDecoration(
+                                                              //color:color.withOpacity(0.8),
+                                                                gradient: LinearGradient(
+                                                                    begin: Alignment
+                                                                        .topCenter,
+                                                                    end: Alignment
+                                                                        .bottomCenter,
+                                                                    colors: [
+                                                                      color
+                                                                          .withOpacity(
+                                                                          0.8),
+                                                                      color
+                                                                          .withOpacity(
+                                                                          0.8),
+                                                                      color
+                                                                          .withOpacity(
+                                                                          0.8),
+                                                                      color
+                                                                    ]
+                                                                ),
+                                                                borderRadius: BorderRadius
+                                                                    .all(Radius
+                                                                    .circular(
+                                                                    15))
+                                                            ),
+                                                            child: Column(
+                                                              mainAxisAlignment: MainAxisAlignment
+                                                                  .start,
+                                                              crossAxisAlignment: CrossAxisAlignment
+                                                                  .end,
                                                               children: [
-                                                                Icon(CupertinoIcons.square_arrow_up,color:Colors.white,size:18),
-                                                                Text(" Pay",style: TextStyle(color: Colors.white,fontWeight:FontWeight.bold,fontSize: 20),),
+                                                                Row(
+                                                                  children: [
+                                                                    Text("${snapshot
+                                                                        .data['response'][index]['TypeName']}",
+                                                                      style: TextStyle(
+                                                                          color: Colors
+                                                                              .white,
+                                                                          fontWeight: FontWeight
+                                                                              .bold,
+                                                                          fontSize: 20),textAlign: TextAlign.start,),
+                                                                  ],
+                                                                ),
+                                                                Text(
+                                                                  "Fees ${snapshot
+                                                                      .data['response'][index]['Fees']}",
+                                                                  style: TextStyle(
+                                                                      color: Colors
+                                                                          .white,
+                                                                      fontWeight: FontWeight
+                                                                          .w600,
+                                                                      fontSize: 18),),
+                                                                Text(
+                                                                  "No of Days ${snapshot
+                                                                      .data['response'][index]['NoOfDays_Ue']}",
+                                                                  style: TextStyle(
+                                                                      color: Colors
+                                                                          .white,
+                                                                      fontWeight: FontWeight
+                                                                          .w400,
+                                                                      fontSize: 18),),
+                                                                /*Text(
+                                                                  "Start Date ${snapshot
+                                                                      .data['response'][index]['StartDate']}",
+                                                                  style: TextStyle(
+                                                                      color: Colors
+                                                                          .white,
+                                                                      fontWeight: FontWeight
+                                                                          .w400,
+                                                                      fontSize: 14),),*/
+                                                                Text(
+                                                                  "End Date ${snapshot
+                                                                      .data['response'][index]['EndDate']}",
+                                                                  style: TextStyle(
+                                                                      color: Colors
+                                                                          .white,
+                                                                      fontWeight: FontWeight
+                                                                          .w400,
+                                                                      fontSize: 14),),
+                                                                (snapshot.data['response'][index]['IsPaid']=="1")?Text(
+                                                                  "Paid On ${snapshot
+                                                                      .data['response'][index]['PaidOn']}",
+                                                                  style: TextStyle(
+                                                                      color: Colors
+                                                                          .white,
+                                                                      fontWeight: FontWeight
+                                                                          .w400,
+                                                                      fontSize: 14),):
+                                                                (snapshot.data['response'][index]['IsReceived']=="0")?SizedBox():Text(
+                                                                  "Received On ${snapshot
+                                                                      .data['response'][index]['ReceivedOn']}",
+                                                                  style: TextStyle(
+                                                                      color: Colors
+                                                                          .white,
+                                                                      fontWeight: FontWeight
+                                                                          .w400,
+                                                                      fontSize: 14),),
                                                               ],
                                                             ),
                                                           ),
                                                           Container(
-                                                            height:40,
-                                                            // width: width*0.25-9,
-                                                            alignment: Alignment.center,
-                                                            decoration: BoxDecoration(
-                                                              borderRadius: BorderRadius.only(bottomRight: Radius.circular(15)),
-                                                            ),
+                                                            height: width *
+                                                                0.5 - 9,
+                                                            alignment: Alignment
+                                                                .bottomCenter,
                                                             child: Row(
+                                                              mainAxisAlignment: MainAxisAlignment
+                                                                  .center,
                                                               children: [
-                                                                Icon(CupertinoIcons.square_arrow_down,color:Colors.white,size:18),
-                                                                Text(" Receive",style: TextStyle(color: Colors.white,fontWeight:FontWeight.bold,fontSize: 20),),
+                                                                (snapshot
+                                                                    .data['response'][index]['IsPaid']=="0")?Container(
+                                                                  height: 40,
+                                                                  // width: width*0.25-9,
+                                                                  alignment: Alignment
+                                                                      .center,
+                                                                  decoration: BoxDecoration(
+                                                                    borderRadius: BorderRadius
+                                                                        .only(
+                                                                        bottomLeft: Radius
+                                                                            .circular(
+                                                                            15)),
+                                                                  ),
+                                                                  child: Row(
+                                                                    children: [
+                                                                      Icon(
+                                                                          CupertinoIcons
+                                                                              .square_arrow_up,
+                                                                          color: Colors
+                                                                              .white,
+                                                                          size: 18),
+                                                                      Text(
+                                                                        " Pay",
+                                                                        style: TextStyle(
+                                                                            color: Colors
+                                                                                .white,
+                                                                            fontWeight: FontWeight
+                                                                                .bold,
+                                                                            fontSize: 20),),
+                                                                    ],
+                                                                  ),
+                                                                ):SizedBox(),
+                                                                (snapshot
+                                                                    .data['response'][index]['IsPaid']=="1")?(snapshot.data['response'][index]['IsReceived']=="0")?Container(
+                                                                  height: 40,
+                                                                  // width: width*0.25-9,
+                                                                  alignment: Alignment
+                                                                      .center,
+                                                                  decoration: BoxDecoration(
+                                                                    borderRadius: BorderRadius
+                                                                        .only(
+                                                                        bottomRight: Radius
+                                                                            .circular(
+                                                                            15)),
+                                                                  ),
+                                                                  child: Row(
+                                                                    children: [
+                                                                      Icon(
+                                                                          CupertinoIcons
+                                                                              .square_arrow_down,
+                                                                          color: Colors
+                                                                              .white,
+                                                                          size: 18),
+                                                                      Text(
+                                                                        " Receive",
+                                                                        style: TextStyle(
+                                                                            color: Colors
+                                                                                .white,
+                                                                            fontWeight: FontWeight
+                                                                                .bold,
+                                                                            fontSize: 20),),
+                                                                    ],
+                                                                  ),
+                                                                ):SizedBox():SizedBox(),
                                                               ],
                                                             ),
                                                           ),
                                                         ],
                                                       ),
                                                     ),
-                                                  ],
+                                                  ),
                                                 ),
-                                              ),
-                                            ),
-                                          ),
+                                              );
+                                            }
                                         );
+                                      }else{
+                                        return Text("Loading...");
                                       }
+                                    }
                                   ),
                                 )
                               ],
@@ -715,7 +890,7 @@ class HomeScreenState extends State<HomeScreen> {
                                        // "ModifiedBy":name.text,
                                        // "ModifiedOn":name.text,
                                       });
-                                      var response = await dio.post("http://192.168.0.100:8081/cenply/services/user/register", data: formData);
+                                      var response = await dio.post(Api().getUrl()+"user/register", data: formData);
                                       print(response.data);
                                       if(jsonDecode(response.data)['success']==true) {
                                         if (jsonDecode(response.data)['response'].toString() != "[]") {
@@ -861,104 +1036,186 @@ class HomeScreenState extends State<HomeScreen> {
                         ListTile(
                           title: Text("Fees Transactions",style: TextStyle(fontSize:20,fontWeight: FontWeight.w400,color: Colors.grey[400]),),
                         ),
-                        GridView.builder(
-                            shrinkWrap:true,
-                            physics: NeverScrollableScrollPhysics(),
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2),
-                            itemCount:10,
-                            itemBuilder:(context,index){
-                              var col = colors[Random().nextInt(colors.length)];
-                              Color color = col['color'];
-                              return Card(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(15.0),
-                                ),
-                                color:col['color'],
-                                child: Container(
-                                  height: 200,
-                                  width: 200,
-                                  child: Stack(
-                                    children: [
-                                      Container(
-                                        height: width*0.5-9,
-                                        width: width*0.5-9,
-                                        padding: EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.all(Radius.circular(15)),
-                                          image: DecorationImage(image:AssetImage(col['image']),fit: BoxFit.cover),
-                                        ),
-                                      ),
-                                      Container(
-                                        height: width*0.5-9,
-                                        width: width*0.5-9,
-                                        padding: EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                            //color:color.withOpacity(0.8),
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topCenter,
-                                              end: Alignment.bottomCenter,
-                                              colors: [
-                                                color.withOpacity(0.8),
-                                                color.withOpacity(0.8),
-                                                color.withOpacity(0.8),
-                                                color
-                                              ]
+                        Container(
+                          constraints: BoxConstraints(minHeight: height),
+                          padding: const EdgeInsets.all(10.0),
+                          child: FutureBuilder(
+                              future: getUserEngFuture,
+                              builder: (context, snapshot) {
+                                print(snapshot.data);
+                                if(snapshot.connectionState!=ConnectionState.waiting) {
+                                  return GridView.builder(
+                                      shrinkWrap: true,
+                                      physics: NeverScrollableScrollPhysics(),
+                                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount: 2,childAspectRatio: 1.0),
+                                      itemCount: snapshot.data['response'].length,
+                                      itemBuilder: (context, index) {
+                                        var col = colors[Random().nextInt(
+                                            colors.length)];
+                                        Color color = col['color'];
+                                        return GestureDetector(
+                                            onTap: (){
+                                              showDialog(
+                                                  barrierDismissible: false,
+                                                  context: context, builder: (context){
+                                                return Dialog(
+                                                    child:PayDialog(data: snapshot.data['response'][index],));
+                                              });
+                                            },
+                                            child: Card(
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius
+                                                    .circular(15.0),
+                                              ),
+                                              color: col['color'],
+                                              child: Container(
+                                                height: 200,
+                                                width: 200,
+                                                child: Stack(
+                                                  children: [
+                                                    Container(
+                                                      height: width *
+                                                          0.5 - 9,
+                                                      width: width * 0.5 -
+                                                          9,
+                                                      padding: EdgeInsets
+                                                          .all(10),
+                                                      decoration: BoxDecoration(
+                                                        borderRadius: BorderRadius
+                                                            .all(Radius
+                                                            .circular(
+                                                            15)),
+                                                        image: DecorationImage(
+                                                            image: AssetImage(
+                                                                col['image']),
+                                                            fit: BoxFit
+                                                                .cover),
+                                                      ),
+                                                    ),
+                                                    Container(
+                                                      height: width *
+                                                          0.5 - 9,
+                                                      width: width * 0.5 -
+                                                          9,
+                                                      padding: EdgeInsets
+                                                          .all(10),
+                                                      decoration: BoxDecoration(
+                                                        //color:color.withOpacity(0.8),
+                                                          gradient: LinearGradient(
+                                                              begin: Alignment
+                                                                  .topCenter,
+                                                              end: Alignment
+                                                                  .bottomCenter,
+                                                              colors: [
+                                                                color
+                                                                    .withOpacity(
+                                                                    0.8),
+                                                                color
+                                                                    .withOpacity(
+                                                                    0.8),
+                                                                color
+                                                                    .withOpacity(
+                                                                    0.8),
+                                                                color
+                                                              ]
+                                                          ),
+                                                          borderRadius: BorderRadius
+                                                              .all(Radius
+                                                              .circular(
+                                                              15))
+                                                      ),
+                                                      child: Column(
+                                                        mainAxisAlignment: MainAxisAlignment
+                                                            .start,
+                                                        crossAxisAlignment: CrossAxisAlignment
+                                                            .end,
+                                                        children: [
+                                                          Row(
+                                                            children: [
+                                                              Text("${snapshot
+                                                                  .data['response'][index]['TypeName']}",
+                                                                style: TextStyle(
+                                                                    color: Colors
+                                                                        .white,
+                                                                    fontWeight: FontWeight
+                                                                        .bold,
+                                                                    fontSize: 20),textAlign: TextAlign.start,),
+                                                            ],
+                                                          ),
+                                                          Text(
+                                                            "Fees ${snapshot
+                                                                .data['response'][index]['Fees']}",
+                                                            style: TextStyle(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontWeight: FontWeight
+                                                                    .w600,
+                                                                fontSize: 18),),
+                                                          Text(
+                                                            "No of Days ${snapshot
+                                                                .data['response'][index]['NoOfDays']}",
+                                                            style: TextStyle(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontWeight: FontWeight
+                                                                    .w400,
+                                                                fontSize: 18),),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    Container(
+                                                      height: width *
+                                                          0.5 - 9,
+                                                      alignment: Alignment
+                                                          .bottomCenter,
+                                                      child:Container(
+                                                        height: 40,
+                                                        // width: width*0.25-9,
+                                                        alignment: Alignment
+                                                            .center,
+                                                        decoration: BoxDecoration(
+                                                          borderRadius: BorderRadius
+                                                              .only(
+                                                              bottomLeft: Radius
+                                                                  .circular(
+                                                                  15)),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisAlignment: MainAxisAlignment.center,
+                                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                                          children: [
+                                                            Icon(
+                                                                CupertinoIcons
+                                                                    .square_arrow_up,
+                                                                color: Colors
+                                                                    .white,
+                                                                size: 24),
+                                                            Text(
+                                                              " Pay",
+                                                              style: TextStyle(
+                                                                  color: Colors
+                                                                      .white,
+                                                                  fontWeight: FontWeight
+                                                                      .bold,
+                                                                  fontSize: 26),),
+                                                          ],
+                                                        ),
+                                                      )
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
                                             ),
-                                            borderRadius: BorderRadius.all(Radius.circular(15))
-                                        ),
-                                        child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.start,
-                                          crossAxisAlignment: CrossAxisAlignment.end,
-                                          children: [
-                                            Text("\$300",style: TextStyle(color: Colors.white,fontWeight: FontWeight.bold,fontSize:32),),
-                                            Text("Start Date 12/02/2021",style: TextStyle(color: Colors.white,fontWeight: FontWeight.w400,fontSize:12),),
-                                            Text("End Date 12/03/2021",style: TextStyle(color: Colors.white,fontWeight: FontWeight.w400,fontSize:12),),
-                                          ],
-                                        ),
-                                      ),
-                                      Container(
-                                        height: width*0.5-9,
-                                        alignment: Alignment.bottomCenter,
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                          children: [
-                                            Container(
-                                              height:40,
-                                             // width: width*0.25-9,
-                                              alignment: Alignment.center,
-                                              decoration: BoxDecoration(
-                                                borderRadius: BorderRadius.only(bottomLeft: Radius.circular(15)),
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  Icon(CupertinoIcons.square_arrow_up,color:Colors.white,size:18),
-                                                  Text(" Pay",style: TextStyle(color: Colors.white,fontWeight:FontWeight.bold,fontSize: 20),),
-                                                ],
-                                              ),
-                                            ),
-                                            Container(
-                                              height:40,
-                                             // width: width*0.25-9,
-                                              alignment: Alignment.center,
-                                              decoration: BoxDecoration(
-                                                borderRadius: BorderRadius.only(bottomRight: Radius.circular(15)),
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  Icon(CupertinoIcons.square_arrow_down,color:Colors.white,size:18),
-                                                  Text(" Receive",style: TextStyle(color: Colors.white,fontWeight:FontWeight.bold,fontSize: 20),),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }
-                        ),
+                                          );
+                                      }
+                                  );
+                                }else{
+                                  return Text("Loading...");
+                                }
+                              }
+                          ),
+                        )
                       ],
                     ),
                   ),
@@ -969,9 +1226,64 @@ class HomeScreenState extends State<HomeScreen> {
           _ripple(),
         ],
       ),
-    ));
+    );
   }
 }
+class PayDialog extends StatefulWidget {
+  final data;
+  const PayDialog({Key key, this.data}) : super(key: key);
+  @override
+  _PayDialogState createState() => _PayDialogState();
+}
+
+class _PayDialogState extends State<PayDialog> {
+  @override
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: ()async{
+        return false;
+      },
+      child: ListTile(
+        horizontalTitleGap: 5,
+        title: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Text("Confirm to Pay ?",style: TextStyle(fontWeight: FontWeight.bold,fontSize:22),),
+        ),
+        subtitle: Container(
+          height: 88,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("  Paying for ${widget.data['TypeName']}"),
+              Text("  Amount ${widget.data['Fees']}"),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  FlatButton(
+                      textColor: Colors.deepOrange,
+                      onPressed:()=>Navigator.pop(context), child: Text("Cancel")),
+                  FlatButton(
+                      textColor: Colors.green,
+                      onPressed:()async{
+                        var dio = Dio();
+                        FormData formData = new FormData.fromMap({
+                          "id":"1",
+                        });
+                        var response = await dio.post(Api().getUrl()+"fees_transition/insert",data:formData);
+                        return jsonDecode(response.data);
+                      },
+                      child: Text("Pay")),
+                ],
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class OrgUpdate extends StatefulWidget {
   final data;
   const OrgUpdate({Key key, this.data}) : super(key: key);
@@ -1132,7 +1444,7 @@ class _OrgUpdateState extends State<OrgUpdate> {
                       "ModifiedOn": DateFormat('dd/MM/yyyy').format(DateTime.now())
                     })
                   });
-                  var response = await dio.post("http://192.168.0.100:8081/cenply/services/organization/update", data: formData);
+                  var response = await dio.post(Api().getUrl()+"organization/update", data: formData);
                   print(response.data);
                   if(jsonDecode(response.data)['success']==true) {
                     if (jsonDecode(response.data)['response'].toString() != "[]") {

@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:myorg/Components/AnimatedWave.dart';
 import 'package:myorg/Screens/Home/index.dart';
+import 'package:myorg/api.dart';
 import '../../main.dart';
 import 'styles.dart';
 import 'loginAnimation.dart';
@@ -199,7 +200,7 @@ class LoginScreenState extends State<LoginScreen>
                                         "username":username.text,
                                         "password":password.text
                                       });
-                                      var response = await dio.post("http://192.168.0.100:8081/cenply/services/user/login", data: formData);
+                                      var response = await dio.post(Api().getUrl()+"user/login", data: formData);
                                       print(response.data);
                                       if(jsonDecode(response.data)['response'].toString()!="[]") {
                                         Navigator.pushReplacement(context,MaterialPageRoute(builder: (context)=>HomeScreen(data:response.data)));
