@@ -6,7 +6,7 @@ class Api{
       print("release_mode");
       return url;
     }else{
-      var url = "http://192.168.0.102:8081/cenply/services/";
+      var url = "http://192.168.0.103:8081/cenply/services/";
       print("debug_mode");
       return url;
     }

@@ -80,14 +80,18 @@ class HomeScreenState extends State<HomeScreen> {
   updateData()async{
     SharedPreferences preferences = await SharedPreferences.getInstance();
     if(widget.data!=null){
+      print(widget.data);
       preferences.setBool('loged', true);
       preferences.setString('data', widget.data);
       user_name = jsonDecode(widget.data)['response']['FullName'];
       user_email = jsonDecode(widget.data)['response']['Email'];
+      user_id = jsonDecode(widget.data)['response']['UserID'];
     }else{
       setState(() {
+        print(jsonDecode(preferences.getString('data'))['response']);
         user_name = jsonDecode(preferences.getString('data'))['response']['FullName'];
         user_email = jsonDecode(preferences.getString('data'))['response']['Email'];
+        user_id = jsonDecode(preferences.getString('data'))['response']['UserID'];
       });
     }
   }
@@ -95,6 +99,7 @@ class HomeScreenState extends State<HomeScreen> {
   void dispose() {
     super.dispose();
   }
+  var user_id;
   List<Map> colors = [
     {"color":Colors.deepOrangeAccent.shade100,"image":"assets/b/b1.jpg",},
     {"color":Colors.deepPurpleAccent.shade100,"image":"assets/b/b2.jpg",},
@@ -115,8 +120,10 @@ class HomeScreenState extends State<HomeScreen> {
   String org_name,user_name,user_email;
   var dio = Dio();
   getOrgData() async {
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    var orgID = jsonDecode(preferences.getString('data'))['response']['UserID'];
       FormData formData = new FormData.fromMap({
-        "id":"1",
+        "id":orgID,
       });
       var response = await dio.post(Api().getUrl()+"organization/get", data: formData);
       print(response.data);
@@ -126,13 +133,17 @@ class HomeScreenState extends State<HomeScreen> {
       return jsonDecode(response.data);
   }
   getPending() async {
-    var response = await dio.post(Api().getUrl()+"fees_transition/transictions?id=1");
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    var orgID = jsonDecode(preferences.getString('data'))['response']['UserID'];
+    var response = await dio.post(Api().getUrl()+"fees_transition/transictions?id=$orgID");
     print(response.data);
     return jsonDecode(response.data);
   }
   getUserEng() async {
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    var orgID = jsonDecode(preferences.getString('data'))['response']['UserID'];
     FormData formData = new FormData.fromMap({
-      "id":"1",
+      "id":orgID,
     });
     var response = await dio.post(Api().getUrl()+"user_engagement/getByOrgID", data: formData);
     print(response.data);
@@ -1266,9 +1277,20 @@ class _PayDialogState extends State<PayDialog> {
                   FlatButton(
                       textColor: Colors.green,
                       onPressed:()async{
+                        SharedPreferences preferences = await SharedPreferences.getInstance();
+                        var userID = jsonDecode(preferences.getString('data'))['response']['UserID'];
                         var dio = Dio();
                         FormData formData = new FormData.fromMap({
-                          "id":"1",
+                          "UserEngagementID":widget.data['UserEngagementID'],
+                          "StartDate":DateFormat("dd/MM/yy").format(DateTime.now()),
+                          "EndDate":DateFormat("dd/MM/yy").format(DateTime.now().add(new Duration(days:int.parse(widget.data['NoOfDays'])))),
+                          "IsPaid":1,
+                          "IsReceived":0,
+                          "PaidOn":DateFormat("dd/MM/yy").format(DateTime.now()),
+                          "NextPaymentDate":DateFormat("dd/MM/yy").format(DateTime.now().add(new Duration(days:int.parse(widget.data['NoOfDays'])+1))),
+                          "PaidByID":userID,
+                          "CreatedBy":userID,
+                          "CreatedOn":DateFormat("dd/MM/yy").format(DateTime.now()),
                         });
                         var response = await dio.post(Api().getUrl()+"fees_transition/insert",data:formData);
                         return jsonDecode(response.data);
